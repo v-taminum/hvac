@@ -66,7 +66,8 @@ function setNeutral(key) {
 
 // ---------------- DemoEngine lokal (fallback bila tanpa simulator) -------------
 const queryParams = new URLSearchParams(window.location.search);
-let demoMode = queryParams.get("demo") === "1" || window.location.protocol === "file:";
+// Default: Demo (aman tanpa DDC). Live DDC hanya jika ?demo=0 eksplisit.
+let demoMode = queryParams.get("demo") !== "0";
 let demoScenario = queryParams.get("skenario") || "normal";
 const COMP_ON = 100, COMP_OFF = 20;
 // Unit yang dimonitor. Tambah unit = tambah objek di sini.
