@@ -688,7 +688,7 @@ async function getData() {
 // Diagnosis berbasis aturan untuk teknisi: satu baris kesimpulan + tindakan.
 function diagnose(vals, data) {
   const num = (k) => vals[k];
-  if (data.compStatus === 0) return { level: "info", icon: "ℹ", text: "Kompresor OFF (cycling/rest) - tekanan menyetarakan, arus tinggal fan. Bukan gangguan." };
+  if (data.compStatus === 0) return { level: "info", icon: "ℹ", text: "Kompresor istirahat (siklus OFF) - tekanan high & low saling menyamakan, arus tinggal fan. Ini kondisi normal, bukan gangguan." };
   const isAhu = (currentUnit.profile || "dx") === "ahu";
   if (isAhu) {
     if (num("chwSupply") > 9) return { level: "bad", icon: "⚠", text: "CHW supply tinggi: chiller / pompa / valve 2-way bermasalah. Eskalasi ke plant sebelum reset." };
@@ -834,7 +834,7 @@ async function fetchData() {
     renderAlarm(data, bad, vals);
     updateDiag(vals, data);
     if (prevComp !== null && data.compStatus !== prevComp && (data.compStatus === 0 || data.compStatus === 1)) {
-      addLog(data.compStatus === 1 ? "COMP_ON" : "COMP_OFF", data.compStatus === 1 ? "Kompresor start" : "Kompresor stop (cycling)");
+      addLog(data.compStatus === 1 ? "COMP_ON" : "COMP_OFF", data.compStatus === 1 ? "Kompresor start" : "Kompresor stop (siklus OFF)");
     }
     if (data.compStatus === 0 || data.compStatus === 1) prevComp = data.compStatus;
     updateHours(data);
