@@ -1,2 +1,7 @@
 __pycache__/
 *.pyc
+
+# Dokumen kerja (tidak ikut deploy GitHub Pages)
+MONITORING AC - SKEMATIK.pdf
+list-perangkat-hvac.txt
+sketch.c
