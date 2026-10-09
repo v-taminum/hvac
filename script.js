@@ -83,8 +83,16 @@ const AC_UNITS = [
   { id: "SPLIT-05", label: "SPLIT-05", desc: "Split DX • R410A • 1.5 PK", type: "Split DX", ref: "R410A", profile: "dx", icon: "❄️", api: null },
   { id: "VRF-01", label: "VRF-01", desc: "VRF Outdoor • R410A • 8 PK", type: "VRF", ref: "R410A", profile: "dx", icon: "🏬", api: null, cap: 3, limits: { currentAvg: [15, 30], powerKW: [9, 20] } },
   { id: "AHU-02", label: "AHU-02", desc: "Central AHU • Chilled Water", type: "Central AHU", ref: "Chilled Water", profile: "ahu", icon: "🏢", api: null },
+  // MPE-DEMO: Central DX (1 indoor + 2 outdoor), profil R22 sesuai
+  // tabel STANDART OPERASI (suction 60-80, discharge 250-310 psi,
+  // supply/outlet 8-14 °C, volt 370-410 V). Arus ikut unit lain
+  // (4-11 A) karena baris ARUS di tabel kosong - update bila ada data.
+  { id: "MPE-DEMO", label: "MPE-DEMO", desc: "Central DX • 1 Indoor + 2 Outdoor • R22", type: "Central DX", ref: "R22", profile: "dx", icon: "🏭", api: null,
+    base: { sucP: 70, disP: 280, dT: 13 },
+    limits: { suctionPressure: [60, 80], dischargePressure: [250, 310], supplyTemp: [8, 14], deltaTemp: [9, 15], voltageLL: [370, 410], currentAvg: [4, 11] } },
 ];
-let currentUnit = AC_UNITS[0];
+// Unit default: MPE-DEMO (Central DX R22).
+let currentUnit = AC_UNITS.find((u) => u.id === "MPE-DEMO") || AC_UNITS[0];
 const DemoProto = {
   t: 0,
   s: null,
@@ -101,6 +109,15 @@ const DemoProto = {
     const k = on && !this.onPrev ? 0.95 : 0.3;
     this.onPrev = on;
     const bT = sc === "beban-tinggi", fr = sc === "freon-kurang", vd = sc === "tegangan-drop";
+    // Titik kerja tekanan per unit (default R410A; MPE-DEMO memakai R22
+    // via unit.base). Jangkar discharge: unit tanpa base memakai rumus
+    // R410A asli (setara 387 saat kondensor 44 °C - matematis identik);
+    // unit ber-base memakai titik kerja tsb. Referensi arus mengikuti
+    // titik kerja discharge.
+    const sucBase = this.baseSucP ?? 126, disBase = this.baseDisP ?? 327;
+    const disC = this.baseDisP ?? (327 + (44 + 1 - 37.8) / 0.12);
+    const disRef = disBase + 38;
+    const dT = this.baseDT ?? 10.5;
     if (on) {
       const roomT = 24 + (this.bias || 0) * 0.5 + Math.sin(this.t / 240) * 0.8 + (bT ? 2 : 0) + (fr ? 0.5 : 0);
       const outT = 32 + (this.bias || 0) * 0.5 + Math.sin(this.t / 300) * 1.5 + (bT ? 4 : 0);
@@ -110,12 +127,12 @@ const DemoProto = {
       st.outdoor = this.lp(st.outdoor, outT, 0.1, 0.1);
       st.evap = this.lp(st.evap, evapT, 0.3, 0.12);
       st.ret = this.lp(st.ret, st.room + 1.5, k, 0.1);
-      st.supply = this.lp(st.supply, st.ret - 10.5 + (fr ? 3 : 0), k, 0.12);
+      st.supply = this.lp(st.supply, st.ret - dT + (fr ? 3 : 0), k, 0.12);
       st.kond = this.lp(st.kond, kondT, 0.2, 0.2);
       // Suction mengikuti suhu evaporasi (±5 psi/°C) dengan titik kerja
       // di tengah rentang normal R410A, bukan di bibir batas bawah.
-      st.sucP = this.lp(st.sucP, 126 + (st.evap - 7.5) * 5 + (fr ? -18 : 0), k, 0.6);
-      st.disP = this.lp(st.disP, 327 + ((st.kond + 1 - 37.8) / 0.12), k, 2);
+      st.sucP = this.lp(st.sucP, sucBase + (st.evap - 7.5) * 5 + (fr ? -18 : 0), k, 0.6);
+      st.disP = this.lp(st.disP, disC + ((st.kond - 44) / 0.12), k, 2);
       st.sh = this.lp(st.sh, 6 + (fr ? 5 : 0), k, 0.2);
       st.sc = this.lp(st.sc, 6 + (fr ? -3 : 0), k, 0.2);
       st.sucT = st.evap - 1 + st.sh;
@@ -125,7 +142,7 @@ const DemoProto = {
       let vT = 398 + (this.bias || 0) + Math.sin(this.t / 47) * 4 + (vd ? -50 : 0) + (bT ? -4 : 0);
       if (Math.random() < 0.03) vT -= 12;
       st.volt = this.lp(st.volt, vT, 0.5, 1.2);
-      st.amp = Math.max(0.5, this.lp(st.amp, (7.4 + (st.disP - 365) * 0.02 + (bT ? 1.2 : 0) + (vd ? 0.6 : 0) + (fr ? -0.6 : 0)) * cap, k, 0.1));
+      st.amp = Math.max(0.5, this.lp(st.amp, (7.4 + (st.disP - disRef) * 0.02 + (bT ? 1.2 : 0) + (vd ? 0.6 : 0) + (fr ? -0.6 : 0)) * cap, k, 0.1));
       st.flowS = this.lp(st.flowS, 2.4, k, 0.05);
       st.flowR = this.lp(st.flowR, 2.2, k, 0.05);
       st.flowO = this.lp(st.flowO, 3.0, k, 0.08);
@@ -168,11 +185,14 @@ const DemoProto = {
   },
 };
 // Tiap unit punya simulator independen (fase kompresor + bias suhu beda).
-function makeDemo(seed, bias) {
+function makeDemo(seed, bias, base) {
   const d = Object.create(DemoProto);
   d.t = seed;
   d.bias = bias;
-  d.s = { room: 24 + bias * 0.5, outdoor: 32, evap: 7.5, supply: 14.2, ret: 25.5, kond: 44, sucP: 128, disP: 365, sucT: 13.2, liqT: 38, sh: 6, sc: 6, rh: 52, co2: 620, volt: 398, amp: 7.4, kw: 4.4, kwh: 12.5, pf: 0.86, chwS: 6.8, chwR: 11.0, flowS: 2.4, flowR: 2.2, flowO: 3.0 };
+  d.baseSucP = base?.sucP;
+  d.baseDisP = base?.disP;
+  d.baseDT = base?.dT;
+  d.s = { room: 24 + bias * 0.5, outdoor: 32, evap: 7.5, supply: 14.2, ret: 25.5, kond: 44, sucP: base?.sucP ?? 128, disP: base?.disP ?? 365, sucT: 13.2, liqT: 38, sh: 6, sc: 6, rh: 52, co2: 620, volt: 398, amp: 7.4, kw: 4.4, kwh: 12.5, pf: 0.86, chwS: 6.8, chwR: 11.0, flowS: 2.4, flowR: 2.2, flowO: 3.0 };
   return d;
 }
 const demos = {};
@@ -180,7 +200,7 @@ function demoFor(id) {
   if (!demos[id]) {
     const u = AC_UNITS.find((x) => x.id === id) || {};
     const i = Math.max(0, AC_UNITS.findIndex((x) => x.id === id));
-    const d = makeDemo(Math.random() * 120 + i * 47, i * 0.3);
+    const d = makeDemo(Math.random() * 120 + i * 47, i * 0.3, u.base);
     d.cap = u.cap || 1;
     demos[id] = d;
   }
@@ -688,17 +708,19 @@ async function getData() {
 // Diagnosis berbasis aturan untuk teknisi: satu baris kesimpulan + tindakan.
 function diagnose(vals, data) {
   const num = (k) => vals[k];
+  // Batas ikut profil unit (R410A vs R22/MPE-DEMO) via effTH.
+  const sucTH = effTH("suctionPressure"), disTH = effTH("dischargePressure"), vTH = effTH("voltageLL");
   if (data.compStatus === 0) return { level: "info", icon: "ℹ", text: "Kompresor istirahat (siklus OFF) - tekanan high & low saling menyamakan, arus tinggal fan. Ini kondisi normal, bukan gangguan." };
   const isAhu = (currentUnit.profile || "dx") === "ahu";
   if (isAhu) {
     if (num("chwSupply") > 9) return { level: "bad", icon: "⚠", text: "CHW supply tinggi: chiller / pompa / valve 2-way bermasalah. Eskalasi ke plant sebelum reset." };
     if (num("chwDelta") < 3) return { level: "warn", icon: "⚠", text: "Delta CHW kecil: aliran berlebih atau coil kotor. Cek balancing valve & filter udara AHU." };
   } else {
-    if (num("suctionPressure") < 115 && num("superheat") > 8) return { level: "bad", icon: "⚠", text: "Indikasi kekurangan refrigeran: suction rendah + superheat tinggi. Cek kebocoran, tambah freon R410A sesuai SH target 4-8 K." };
-    if (num("dischargePressure") > 425) return { level: "bad", icon: "⚠", text: "Discharge over-pressure: cek kondensor kotor, fan outdoor mati, atau beban berlebih. Jangan reset paksa berulang." };
-    if (num("suctionPressure") < 115) return { level: "warn", icon: "⚠", text: "Suction rendah: cek filter indoor, evaporator frosting, atau EEV/katup ekspansi." };
+    if (num("suctionPressure") < sucTH[0] && num("superheat") > 8) return { level: "bad", icon: "⚠", text: `Indikasi kekurangan refrigeran: suction di bawah ${sucTH[0]} psi + superheat tinggi. Cek kebocoran, tambah freon sesuai SH target 4-8 K.` };
+    if (num("dischargePressure") > disTH[1]) return { level: "bad", icon: "⚠", text: `Discharge over-pressure di atas ${disTH[1]} psi: cek kondensor kotor, fan outdoor mati, atau beban berlebih. Jangan reset paksa berulang.` };
+    if (num("suctionPressure") < sucTH[0]) return { level: "warn", icon: "⚠", text: `Suction rendah di bawah ${sucTH[0]} psi: cek filter indoor, evaporator frosting, atau EEV/katup ekspansi.` };
   }
-  if (num("voltageLL") < 365) return { level: "bad", icon: "⚠", text: "Tegangan di bawah 365 V: cek panel 3-phase & koneksi sebelum start ulang kompresor." };
+  if (num("voltageLL") < vTH[0]) return { level: "bad", icon: "⚠", text: `Tegangan di bawah ${vTH[0]} V: cek panel 3-phase & koneksi sebelum start ulang kompresor.` };
   if (num("airflowSupply") < 1.5) return { level: "warn", icon: "⚠", text: "Air flow supply rendah: filter/koi evaporator kotor, fan indoor lemah, atau duct tersumbat. Bersihkan filter & cek putaran fan." };
   if (num("airflowOutdoor") < 1.5) return { level: "bad", icon: "⚠", text: "Air flow outdoor rendah: fan kondenser mati/terhambat - tekanan tinggi akan naik. Cek kipas & sirip kondenser." };
   if (num("deltaTemp") < 7) return { level: "warn", icon: "⚠", text: "Delta-T rendah: kapasitas pendinginan turun. Cek filter, freon, dan putaran fan indoor." };
