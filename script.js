@@ -22,6 +22,19 @@ const THRESHOLDS = {
   powerKW: [2.5, 7], powerFactor: [0.8, 1.0],
   energyKWh: null, deltaTemp: [7, 12],
   chwSupply: [5, 9], chwReturn: [9, 15], chwDelta: [3, 7],
+  // Sirkuit ganda MPE-DEMO (A=OU 1A, B=OU 1B) - profil R22.
+  suctionPressureA: [60, 80], dischargePressureA: [250, 310],
+  suctionTempA: [8, 16], liquidTempA: [35, 48], superheatA: [4, 8], subcoolingA: [4, 8],
+  suctionPressureB: [60, 80], dischargePressureB: [250, 310],
+  suctionTempB: [8, 16], liquidTempB: [35, 48], superheatB: [4, 8], subcoolingB: [4, 8],
+  // Elektrikal per sub-unit per phase (nominal 380 V / 9 A).
+  voltOU1A_R: [370, 410], voltOU1A_S: [370, 410], voltOU1A_T: [370, 410],
+  voltOU1B_R: [370, 410], voltOU1B_S: [370, 410], voltOU1B_T: [370, 410],
+  voltIDU_R: [370, 410], voltIDU_S: [370, 410], voltIDU_T: [370, 410],
+  ampOU1A_R: [7, 11], ampOU1A_S: [7, 11], ampOU1A_T: [7, 11],
+  ampOU1B_R: [7, 11], ampOU1B_S: [7, 11], ampOU1B_T: [7, 11],
+  ampIDU_R: [7, 11], ampIDU_S: [7, 11], ampIDU_T: [7, 11],
+  powerOU1A: [3, 7], powerOU1B: [3, 7], powerIDU: [3, 7], powerTotal: [10, 20],
 };
 const UNITS = {
   suctionPressure: "psi", dischargePressure: "psi",
@@ -32,6 +45,17 @@ const UNITS = {
   voltageLL: "V", currentAvg: "A",
   powerKW: "kW", powerFactor: "", energyKWh: "kWh", deltaTemp: "°C",
   chwSupply: "°C", chwReturn: "°C", chwDelta: "K",
+  suctionPressureA: "psi", dischargePressureA: "psi",
+  suctionTempA: "°C", liquidTempA: "°C", superheatA: "K", subcoolingA: "K",
+  suctionPressureB: "psi", dischargePressureB: "psi",
+  suctionTempB: "°C", liquidTempB: "°C", superheatB: "K", subcoolingB: "K",
+  voltOU1A_R: "V", voltOU1A_S: "V", voltOU1A_T: "V",
+  voltOU1B_R: "V", voltOU1B_S: "V", voltOU1B_T: "V",
+  voltIDU_R: "V", voltIDU_S: "V", voltIDU_T: "V",
+  ampOU1A_R: "A", ampOU1A_S: "A", ampOU1A_T: "A",
+  ampOU1B_R: "A", ampOU1B_S: "A", ampOU1B_T: "A",
+  ampIDU_R: "A", ampIDU_S: "A", ampIDU_T: "A",
+  powerOU1A: "kW", powerOU1B: "kW", powerIDU: "kW", powerTotal: "kW",
 };
 const DECIMALS = {
   suctionPressure: 1, dischargePressure: 1, suctionTemp: 1, liquidTemp: 1,
@@ -41,6 +65,17 @@ const DECIMALS = {
   voltageLL: 0, currentAvg: 2,
   powerKW: 2, powerFactor: 2, energyKWh: 2, deltaTemp: 1,
   chwSupply: 1, chwReturn: 1, chwDelta: 1,
+  suctionPressureA: 1, dischargePressureA: 1, suctionTempA: 1, liquidTempA: 1,
+  superheatA: 1, subcoolingA: 1,
+  suctionPressureB: 1, dischargePressureB: 1, suctionTempB: 1, liquidTempB: 1,
+  superheatB: 1, subcoolingB: 1,
+  voltOU1A_R: 0, voltOU1A_S: 0, voltOU1A_T: 0,
+  voltOU1B_R: 0, voltOU1B_S: 0, voltOU1B_T: 0,
+  voltIDU_R: 0, voltIDU_S: 0, voltIDU_T: 0,
+  ampOU1A_R: 2, ampOU1A_S: 2, ampOU1A_T: 2,
+  ampOU1B_R: 2, ampOU1B_S: 2, ampOU1B_T: 2,
+  ampIDU_R: 2, ampIDU_S: 2, ampIDU_T: 2,
+  powerOU1A: 2, powerOU1B: 2, powerIDU: 2, powerTotal: 2,
 };
 // Fallback peta lama (ESP32 legacy) bila DDC baru tidak tersedia.
 const LEGACY = {
@@ -83,13 +118,15 @@ const AC_UNITS = [
   { id: "SPLIT-05", label: "SPLIT-05", desc: "Split DX • R410A • 1.5 PK", type: "Split DX", ref: "R410A", profile: "dx", icon: "❄️", api: null },
   { id: "VRF-01", label: "VRF-01", desc: "VRF Outdoor • R410A • 8 PK", type: "VRF", ref: "R410A", profile: "dx", icon: "🏬", api: null, cap: 3, limits: { currentAvg: [15, 30], powerKW: [9, 20] } },
   { id: "AHU-02", label: "AHU-02", desc: "Central AHU • Chilled Water", type: "Central AHU", ref: "Chilled Water", profile: "ahu", icon: "🏢", api: null },
-  // MPE-DEMO: Central DX (1 indoor + 2 outdoor), profil R22 sesuai
-  // tabel STANDART OPERASI (suction 60-80, discharge 250-310 psi,
-  // supply/outlet 8-14 °C, volt 370-410 V). Arus ikut unit lain
-  // (4-11 A) karena baris ARUS di tabel kosong - update bila ada data.
-  { id: "MPE-DEMO", label: "MPE-DEMO", desc: "Central DX • 1 Indoor + 2 Outdoor • R22", type: "Central DX", ref: "R22", profile: "dx", icon: "🏭", api: null,
+  // MPE-DEMO: Central DX (1 indoor + 2 outdoor OU 1A/1B), profil R22.
+  // 2 sirkuit refrigeran (A=OU 1A, B=OU 1B) + elektrikal 3 sub-unit x 3 phase.
+  // Standar tabel: suction 60-80, discharge 250-310 psi, supply/outlet 8-14 °C,
+  // voltase 370-410 V (nominal 380 V), arus nominal 9 A/phase (batas 7-11 A
+  // = ±2 A estimasi). Daya ≈5,1 kW/sub-unit, energi = total ketiganya.
+  // PF disembunyikan di monitor unit (pindah ke monitor incoming panel).
+  { id: "MPE-DEMO", label: "MPE-DEMO", desc: "Central DX • 1 Indoor + 2 Outdoor • R22", type: "Central DX", ref: "R22", profile: "central", icon: "🏭", api: null,
     base: { sucP: 70, disP: 280, dT: 13 },
-    limits: { suctionPressure: [60, 80], dischargePressure: [250, 310], supplyTemp: [8, 14], deltaTemp: [9, 15], voltageLL: [370, 410], currentAvg: [4, 11] } },
+    limits: { suctionPressure: [60, 80], dischargePressure: [250, 310], supplyTemp: [8, 14], deltaTemp: [9, 15], voltageLL: [370, 410], currentAvg: [4, 11], powerKW: [10, 20] } },
 ];
 // Unit default: MPE-DEMO (Central DX R22).
 let currentUnit = AC_UNITS.find((u) => u.id === "MPE-DEMO") || AC_UNITS[0];
@@ -118,6 +155,11 @@ const DemoProto = {
     const disC = this.baseDisP ?? (327 + (44 + 1 - 37.8) / 0.12);
     const disRef = disBase + 38;
     const dT = this.baseDT ?? 10.5;
+    // Daya 3-phase 1 sub-unit dari rata-rata V dan I per phase.
+    const subPower = (su) => 1.732
+      * ((st["v" + su + "_R"] + st["v" + su + "_S"] + st["v" + su + "_T"]) / 3)
+      * ((st["a" + su + "_R"] + st["a" + su + "_S"] + st["a" + su + "_T"]) / 3)
+      * st.pf / 1000;
     if (on) {
       const roomT = 24 + (this.bias || 0) * 0.5 + Math.sin(this.t / 240) * 0.8 + (bT ? 2 : 0) + (fr ? 0.5 : 0);
       const outT = 32 + (this.bias || 0) * 0.5 + Math.sin(this.t / 300) * 1.5 + (bT ? 4 : 0);
@@ -131,34 +173,89 @@ const DemoProto = {
       st.kond = this.lp(st.kond, kondT, 0.2, 0.2);
       // Suction mengikuti suhu evaporasi (±5 psi/°C) dengan titik kerja
       // di tengah rentang normal R410A, bukan di bibir batas bawah.
-      st.sucP = this.lp(st.sucP, sucBase + (st.evap - 7.5) * 5 + (fr ? -18 : 0), k, 0.6);
-      st.disP = this.lp(st.disP, disC + ((st.kond - 44) / 0.12), k, 2);
-      st.sh = this.lp(st.sh, 6 + (fr ? 5 : 0), k, 0.2);
-      st.sc = this.lp(st.sc, 6 + (fr ? -3 : 0), k, 0.2);
-      st.sucT = st.evap - 1 + st.sh;
-      st.liqT = st.kond + 1 - st.sc;
+      st.pf = this.lp(st.pf, 0.86, 0.2, 0.005);
+      if (this.subcentral) {
+        // MPE-DEMO: 2 sirkuit (A=OU 1A, B=OU 1B sedikit lebih panas) +
+        // elektrikal 3 sub-unit x 3 phase (nominal 380 V / 9 A).
+        for (const [sfx, sb, dOff] of [["A", 0, 0], ["B", 2, 5]]) {
+          st["sucP" + sfx] = this.lp(st["sucP" + sfx] ?? (sucBase + sb), sucBase + sb + (st.evap - 7.5) * 5 + (fr ? -18 : 0), k, 0.6);
+          st["disP" + sfx] = this.lp(st["disP" + sfx] ?? (disC + dOff), disC + dOff + ((st.kond - 44) / 0.12), k, 2);
+          st["sh" + sfx] = this.lp(st["sh" + sfx] ?? 6, 6 + (fr ? 5 : 0), k, 0.2);
+          st["sc" + sfx] = this.lp(st["sc" + sfx] ?? 6, 6 + (fr ? -3 : 0), k, 0.2);
+          st["sucT" + sfx] = st.evap - 1 + st["sh" + sfx] + (sfx === "B" ? 0.3 : 0);
+          st["liqT" + sfx] = st.kond + 1 - st["sc" + sfx] + (sfx === "B" ? 0.3 : 0);
+        }
+        let vSum = 0, aSum = 0, pTot = 0;
+        for (const su of ["OU1A", "OU1B", "IDU"]) {
+          let vs = 0, as = 0;
+          ["R", "S", "T"].forEach((ph, pi) => {
+            const vk = "v" + su + "_" + ph, ak = "a" + su + "_" + ph;
+            if (st[vk] === undefined) st[vk] = 380;
+            if (st[ak] === undefined) st[ak] = 9;
+            let vTp = 380 + (pi - 1) * 1.2 + Math.sin(this.t / 47) * 3 + (vd ? -50 : 0) + (bT ? -4 : 0);
+            if (Math.random() < 0.03) vTp -= 10;
+            st[vk] = this.lp(st[vk], vTp, 0.5, 1.0);
+            const aTp = 9 + (pi - 1) * 0.25 + (st.disPA - disC) * 0.02 + (bT ? 1.0 : 0) + (vd ? 0.5 : 0) + (fr ? -0.5 : 0);
+            st[ak] = Math.max(0.5, this.lp(st[ak], aTp, k, 0.08));
+            vs += st[vk]; as += st[ak];
+          });
+          vs /= 3; as /= 3; vSum += vs; aSum += as;
+          const p = subPower(su);
+          st["pow" + su] = p; pTot += p;
+        }
+        st.volt = vSum / 3; st.amp = aSum / 3; st.kw = pTot;
+      } else {
+        st.sucP = this.lp(st.sucP, sucBase + (st.evap - 7.5) * 5 + (fr ? -18 : 0), k, 0.6);
+        st.disP = this.lp(st.disP, disC + ((st.kond - 44) / 0.12), k, 2);
+        st.sh = this.lp(st.sh, 6 + (fr ? 5 : 0), k, 0.2);
+        st.sc = this.lp(st.sc, 6 + (fr ? -3 : 0), k, 0.2);
+        st.sucT = st.evap - 1 + st.sh;
+        st.liqT = st.kond + 1 - st.sc;
+        let vT = 398 + (this.bias || 0) + Math.sin(this.t / 47) * 4 + (vd ? -50 : 0) + (bT ? -4 : 0);
+        if (Math.random() < 0.03) vT -= 12;
+        st.volt = this.lp(st.volt, vT, 0.5, 1.2);
+        st.amp = Math.max(0.5, this.lp(st.amp, (7.4 + (st.disP - disRef) * 0.02 + (bT ? 1.2 : 0) + (vd ? 0.6 : 0) + (fr ? -0.6 : 0)) * cap, k, 0.1));
+        st.kw = 1.732 * st.volt * st.amp * st.pf / 1000;
+      }
       st.rh = this.lp(st.rh, 52 + Math.sin(this.t / 200) * 4 + (bT ? 5 : 0), 0.15, 0.4);
       st.co2 = this.lp(st.co2, 620 + Math.sin(this.t / 170) * 120 + (bT ? 200 : 0), 0.15, 8);
-      let vT = 398 + (this.bias || 0) + Math.sin(this.t / 47) * 4 + (vd ? -50 : 0) + (bT ? -4 : 0);
-      if (Math.random() < 0.03) vT -= 12;
-      st.volt = this.lp(st.volt, vT, 0.5, 1.2);
-      st.amp = Math.max(0.5, this.lp(st.amp, (7.4 + (st.disP - disRef) * 0.02 + (bT ? 1.2 : 0) + (vd ? 0.6 : 0) + (fr ? -0.6 : 0)) * cap, k, 0.1));
       st.flowS = this.lp(st.flowS, 2.4, k, 0.05);
       st.flowR = this.lp(st.flowR, 2.2, k, 0.05);
       st.flowO = this.lp(st.flowO, 3.0, k, 0.08);
-      st.pf = this.lp(st.pf, 0.86, 0.2, 0.005);
-      st.kw = 1.732 * st.volt * st.amp * st.pf / 1000;
       st.comp = 1;
     } else {
       st.ret = this.lp(st.ret, st.room + 1.5, 0.3, 0.1);
       st.supply = this.lp(st.supply, st.ret - 2, 0.3, 0.12);
-      st.sucP = this.lp(st.sucP, 185, 0.3, 0.8);
-      st.disP = this.lp(st.disP, 195, 0.3, 1.5);
-      st.amp = this.lp(st.amp, 0.5, 0.4, 0.03);
+      if (this.subcentral) {
+        // Kompresor OFF: sirkuit menyetarakan, tegangan jala-jala tetap ada,
+        // arus tinggal arus fan 0,5 A.
+        for (const sfx of ["A", "B"]) {
+          st["sucP" + sfx] = this.lp(st["sucP" + sfx] ?? 70, 185, 0.3, 0.8);
+          st["disP" + sfx] = this.lp(st["disP" + sfx] ?? 280, 195, 0.3, 1.5);
+        }
+        let aSum = 0;
+        for (const su of ["OU1A", "OU1B", "IDU"]) {
+          ["R", "S", "T"].forEach((ph) => {
+            const vk = "v" + su + "_" + ph, ak = "a" + su + "_" + ph;
+            if (st[vk] === undefined) st[vk] = 380;
+            if (st[ak] === undefined) st[ak] = 9;
+            st[vk] = this.lp(st[vk], 380 + Math.sin(this.t / 47) * 3, 0.5, 1.0);
+            st[ak] = this.lp(st[ak], 0.5, 0.4, 0.03);
+            aSum += st[ak];
+          });
+          st["pow" + su] = subPower(su);
+        }
+        st.amp = aSum / 9;
+        st.kw = st.powOU1A + st.powOU1B + st.powIDU;
+      } else {
+        st.sucP = this.lp(st.sucP, 185, 0.3, 0.8);
+        st.disP = this.lp(st.disP, 195, 0.3, 1.5);
+        st.amp = this.lp(st.amp, 0.5, 0.4, 0.03);
+        st.kw = 1.732 * st.volt * st.amp * st.pf / 1000;
+      }
       st.flowS = this.lp(st.flowS, 0, 0.5, 0.02);
       st.flowR = this.lp(st.flowR, 0, 0.5, 0.02);
       st.flowO = this.lp(st.flowO, 0, 0.5, 0.03);
-      st.kw = 1.732 * st.volt * st.amp * st.pf / 1000;
       st.comp = 0;
     }
     // Chilled water (untuk AHU central): supply ~6.5°C, delta ~4 K.
@@ -168,7 +265,7 @@ const DemoProto = {
     st.kwh += Math.max(0, st.kw) * dt / 3600;
     const r1 = (v) => Math.round(v * 10) / 10;
     const r2 = (v) => Math.round(v * 100) / 100;
-    return {
+    const out = {
       suctionPressure: r1(st.sucP), dischargePressure: r1(st.disP),
       suctionTemp: r1(st.sucT), liquidTemp: r1(st.liqT),
       superheat: r1(st.sh), subcooling: r1(st.sc),
@@ -182,6 +279,28 @@ const DemoProto = {
       powerFactor: Math.round(st.pf * 1000) / 1000, compStatus: st.comp,
       alarmCode: 0, deltaTemp: r1(st.ret - st.supply),
     };
+    if (this.subcentral) {
+      // MPE-DEMO: 2 sirkuit + elektrikal per sub-unit per phase.
+      // Legacy voltageLL/currentAvg/powerKW diisi rata-rata/total agar
+      // kompatibel (kartunya disembunyikan utk profil central).
+      for (const sfx of ["A", "B"]) {
+        out["suctionPressure" + sfx] = r1(st["sucP" + sfx]);
+        out["dischargePressure" + sfx] = r1(st["disP" + sfx]);
+        out["suctionTemp" + sfx] = r1(st["sucT" + sfx]);
+        out["liquidTemp" + sfx] = r1(st["liqT" + sfx]);
+        out["superheat" + sfx] = r1(st["sh" + sfx]);
+        out["subcooling" + sfx] = r1(st["sc" + sfx]);
+      }
+      for (const su of ["OU1A", "OU1B", "IDU"]) {
+        for (const ph of ["R", "S", "T"]) {
+          out["volt" + su + "_" + ph] = Math.round(st["v" + su + "_" + ph]);
+          out["amp" + su + "_" + ph] = Math.round(st["a" + su + "_" + ph] * 100) / 100;
+        }
+        out["power" + su] = Math.round(st["pow" + su] * 100) / 100;
+      }
+      out.powerTotal = Math.round(st.kw * 100) / 100;
+    }
+    return out;
   },
 };
 // Tiap unit punya simulator independen (fase kompresor + bias suhu beda).
@@ -193,6 +312,18 @@ function makeDemo(seed, bias, base) {
   d.baseDisP = base?.disP;
   d.baseDT = base?.dT;
   d.s = { room: 24 + bias * 0.5, outdoor: 32, evap: 7.5, supply: 14.2, ret: 25.5, kond: 44, sucP: base?.sucP ?? 128, disP: base?.disP ?? 365, sucT: 13.2, liqT: 38, sh: 6, sc: 6, rh: 52, co2: 620, volt: 398, amp: 7.4, kw: 4.4, kwh: 12.5, pf: 0.86, chwS: 6.8, chwR: 11.0, flowS: 2.4, flowR: 2.2, flowO: 3.0 };
+  if (base?.sucP !== undefined) {
+    // State awal sirkuit ganda + elektrikal per phase (agar tidak NaN
+    // bila demo langsung masuk siklus OFF).
+    Object.assign(d.s, {
+      sucPA: base.sucP, disPA: base.disP, shA: 6, scA: 6, sucTA: 13.2, liqTA: 38,
+      sucPB: base.sucP + 2, disPB: base.disP + 5, shB: 6, scB: 6, sucTB: 13.5, liqTB: 38.3,
+    });
+    for (const su of ["OU1A", "OU1B", "IDU"]) {
+      d.s["pow" + su] = 5.1;
+      for (const ph of ["R", "S", "T"]) { d.s["v" + su + "_" + ph] = 380; d.s["a" + su + "_" + ph] = 9; }
+    }
+  }
   return d;
 }
 const demos = {};
@@ -202,6 +333,7 @@ function demoFor(id) {
     const i = Math.max(0, AC_UNITS.findIndex((x) => x.id === id));
     const d = makeDemo(Math.random() * 120 + i * 47, i * 0.3, u.base);
     d.cap = u.cap || 1;
+    d.subcentral = u.profile === "central";
     demos[id] = d;
   }
   return demos[id];
@@ -220,7 +352,8 @@ const LOG_KEY = "hvac-log-v1", SNAP_KEY = "hvac-snap-v1", HOURS_KEY = "hvac-hour
 const LOG_CAP = 500, SNAP_EVERY = 12, SNAP_CAP = 720;
 const FILTER_INTERVAL_H = 500;
 const SETPOINTS = { roomTemp: 24.0, supplyTemp: 14.0 };
-const SNAP_KEYS = ["suctionPressure", "dischargePressure", "suctionTemp", "liquidTemp", "superheat", "subcooling", "supplyTemp", "returnTemp", "roomTemp", "outdoorTemp", "roomRH", "co2", "airflowSupply", "airflowReturn", "airflowOutdoor", "voltageLL", "currentAvg", "powerKW", "chwSupply", "chwReturn", "chwDelta", "compStatus"];
+const SNAP_KEYS = ["suctionPressure", "dischargePressure", "suctionTemp", "liquidTemp", "superheat", "subcooling", "supplyTemp", "returnTemp", "roomTemp", "outdoorTemp", "roomRH", "co2", "airflowSupply", "airflowReturn", "airflowOutdoor", "voltageLL", "currentAvg", "powerKW", "chwSupply", "chwReturn", "chwDelta", "compStatus",
+  "suctionPressureA", "dischargePressureA", "suctionPressureB", "dischargePressureB", "powerOU1A", "powerOU1B", "powerIDU", "powerTotal"];
 let eventLog = [], snaps = [], pollCount = 0, prevComp = null;
 let hours = { comp: 0, fan: 0, filter: 0 };
 function lsGet(k, fb) { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fb; } catch (e) { return fb; } }
@@ -301,14 +434,28 @@ function clearCharts() {
   if (chartPress) { chartPress.data.labels = []; chartPress.data.datasets.forEach((d) => (d.data = [])); chartPress.update(); }
 }
 function applyProfileSections() {
-  const isAhu = (currentUnit.profile || "dx") === "ahu";
-  if ($("sec-ref")) $("sec-ref").hidden = isAhu;
+  const p = currentUnit.profile || "dx";
+  const isAhu = p === "ahu", isCentral = p === "central";
+  if ($("sec-ref")) $("sec-ref").hidden = isAhu || isCentral;
   if ($("sec-chw")) $("sec-chw").hidden = !isAhu;
+  for (const id of ["sec-refA", "sec-refB", "sec-elA", "sec-elB", "sec-elC"]) {
+    if ($(id)) $(id).hidden = !isCentral;
+  }
+  // Elektrikal generik: profil central hanya tampil Daya Total + Energi
+  // (V/I rata-rata & Power Factor disembunyikan - PF ikut incoming panel).
+  for (const k2 of ["voltageLL", "currentAvg", "powerKW", "powerFactor"]) {
+    const c = $("card-" + k2);
+    if (c) c.style.display = isCentral ? "none" : "";
+  }
+  const pt = $("card-powerTotal");
+  if (pt) pt.style.display = isCentral ? "" : "none";
+  const eh = $("card-energyKWh")?.querySelector(".card-header");
+  if (eh) eh.textContent = isCentral ? "Energi Total OU1A+OU1B+IDU" : "Energi Kumulatif";
 }
 let overviewActive = false;
 function showOverview() {
   overviewActive = true;
-  ["sec-ref", "sec-chw", "sec-air", "sec-flow", "sec-el", "sec-trend", "alarmBanner", "diagBar", "maintBar"].forEach((id) => { if ($(id)) $(id).hidden = true; });
+  ["sec-ref", "sec-refA", "sec-refB", "sec-chw", "sec-air", "sec-flow", "sec-el", "sec-elA", "sec-elB", "sec-elC", "sec-trend", "alarmBanner", "diagBar", "maintBar"].forEach((id) => { if ($(id)) $(id).hidden = true; });
   if ($("sec-overview")) $("sec-overview").hidden = false;
   $("btnOv")?.classList.add("active");
   fetchOverview();
@@ -316,7 +463,7 @@ function showOverview() {
 function showDetail() {
   overviewActive = false;
   if ($("sec-overview")) $("sec-overview").hidden = true;
-  ["sec-air", "sec-flow", "sec-el", "sec-trend", "alarmBanner", "diagBar", "maintBar"].forEach((id) => { if ($(id)) $(id).hidden = false; });
+  ["sec-air", "sec-flow", "sec-el", "sec-elA", "sec-elB", "sec-elC", "sec-trend", "alarmBanner", "diagBar", "maintBar"].forEach((id) => { if ($(id)) $(id).hidden = false; });
   applyProfileSections();
   $("btnOv")?.classList.remove("active");
 }
@@ -345,12 +492,16 @@ function setUnit(id) {
 const OV_METRIC = {
   dx: ["roomTemp", "suctionPressure", "dischargePressure", "airflowSupply", "currentAvg", "powerKW"],
   ahu: ["roomTemp", "supplyTemp", "airflowSupply", "chwSupply", "chwReturn", "chwDelta"],
+  central: ["roomTemp", "suctionPressureA", "dischargePressureA", "suctionPressureB", "dischargePressureB", "powerTotal"],
 };
 const OV_LABEL = {
   roomTemp: "Room", roomRH: "RH", suctionPressure: "Suction", dischargePressure: "Discharge",
   currentAvg: "Arus", powerKW: "Daya", supplyTemp: "Supply", chwSupply: "CHW Sup",
   chwReturn: "CHW Ret", chwDelta: "Δ CHW",
   airflowSupply: "Flow Sup", airflowReturn: "Flow Ret", airflowOutdoor: "Flow Out",
+  suctionPressureA: "Suc A", dischargePressureA: "Dis A",
+  suctionPressureB: "Suc B", dischargePressureB: "Dis B",
+  powerTotal: "P Total", powerOU1A: "P OU1A", powerOU1B: "P OU1B", powerIDU: "P IDU",
 };
 function ovMetrics(u, vals, data) {
   const keys = OV_METRIC[u.profile || "dx"] || OV_METRIC.dx;
@@ -542,8 +693,13 @@ function effTH(key, unit) {
 // Klasifikasi bacaan: "good" = hijau, "bad" = merah + alarm,
 // "neutral" = abu-abu (tidak dinilai - mis. sirkuit saat kompresor OFF,
 // saat OFF tekanan menyetarakan & delta-T loyo, itu bukan gangguan).
-const RUN_ONLY_KEYS = ["suctionPressure", "dischargePressure", "suctionTemp", "liquidTemp", "superheat", "subcooling", "supplyTemp", "deltaTemp", "airflowSupply", "airflowReturn", "airflowOutdoor"];
-const OFF_LOW_OK_KEYS = ["currentAvg", "powerKW"];
+const RUN_ONLY_KEYS = ["suctionPressure", "dischargePressure", "suctionTemp", "liquidTemp", "superheat", "subcooling", "supplyTemp", "deltaTemp", "airflowSupply", "airflowReturn", "airflowOutdoor",
+  "suctionPressureA", "dischargePressureA", "suctionTempA", "liquidTempA", "superheatA", "subcoolingA",
+  "suctionPressureB", "dischargePressureB", "suctionTempB", "liquidTempB", "superheatB", "subcoolingB"];
+const OFF_LOW_OK_KEYS = ["currentAvg", "powerKW",
+  "ampOU1A_R", "ampOU1A_S", "ampOU1A_T", "ampOU1B_R", "ampOU1B_S", "ampOU1B_T",
+  "ampIDU_R", "ampIDU_S", "ampIDU_T",
+  "powerOU1A", "powerOU1B", "powerIDU", "powerTotal"];
 function hasRawField(key, data) {
   return data[key] !== undefined || (LEGACY[key] || []).some((a) => data[a] !== undefined);
 }
@@ -720,6 +876,21 @@ function diagnose(vals, data) {
     if (num("dischargePressure") > disTH[1]) return { level: "bad", icon: "⚠", text: `Discharge over-pressure di atas ${disTH[1]} psi: cek kondensor kotor, fan outdoor mati, atau beban berlebih. Jangan reset paksa berulang.` };
     if (num("suctionPressure") < sucTH[0]) return { level: "warn", icon: "⚠", text: `Suction rendah di bawah ${sucTH[0]} psi: cek filter indoor, evaporator frosting, atau EEV/katup ekspansi.` };
   }
+  if ((currentUnit.profile || "dx") === "central") {
+    // MPE-DEMO: cek tiap sirkuit OU 1A/1B + tegangan per phase.
+    for (const sfx of ["A", "B"]) {
+      const nm = sfx === "A" ? "OU 1A" : "OU 1B";
+      if (num("suctionPressure" + sfx) < sucTH[0] && num("superheat" + sfx) > 8) return { level: "bad", icon: "⚠", text: `Indikasi kekurangan refrigeran ${nm}: suction di bawah ${sucTH[0]} psi + superheat tinggi. Cek kebocoran pada sirkuit ${nm}.` };
+      if (num("dischargePressure" + sfx) > disTH[1]) return { level: "bad", icon: "⚠", text: `Discharge over-pressure ${nm} di atas ${disTH[1]} psi: cek kondensor & fan ${nm}.` };
+      if (num("suctionPressure" + sfx) < sucTH[0]) return { level: "warn", icon: "⚠", text: `Suction ${nm} rendah di bawah ${sucTH[0]} psi: cek filter indoor / EEV sirkuit ${nm}.` };
+    }
+    let minV = Infinity, minKey = "";
+    for (const su of ["OU1A", "OU1B", "IDU"]) for (const ph of ["R", "S", "T"]) {
+      const v = num("volt" + su + "_" + ph);
+      if (v < minV) { minV = v; minKey = su + "-" + ph; }
+    }
+    if (minV < vTH[0]) return { level: "bad", icon: "⚠", text: `Tegangan ${minKey} ${minV.toFixed(0)} V di bawah ${vTH[0]} V: cek panel 3-phase & koneksi.` };
+  }
   if (num("voltageLL") < vTH[0]) return { level: "bad", icon: "⚠", text: `Tegangan di bawah ${vTH[0]} V: cek panel 3-phase & koneksi sebelum start ulang kompresor.` };
   if (num("airflowSupply") < 1.5) return { level: "warn", icon: "⚠", text: "Air flow supply rendah: filter/koi evaporator kotor, fan indoor lemah, atau duct tersumbat. Bersihkan filter & cek putaran fan." };
   if (num("airflowOutdoor") < 1.5) return { level: "bad", icon: "⚠", text: "Air flow outdoor rendah: fan kondenser mati/terhambat - tekanan tinggi akan naik. Cek kipas & sirip kondenser." };
@@ -760,6 +931,20 @@ const FRIENDLY = {
   voltageLL: "Tegangan L-L", currentAvg: "Arus", powerKW: "Daya Aktif",
   powerFactor: "Power Factor", energyKWh: "Energi", deltaTemp: "Delta Temp",
   chwSupply: "CHW Supply", chwReturn: "CHW Return", chwDelta: "Delta CHW",
+  suctionPressureA: "Suction OU 1A", dischargePressureA: "Discharge OU 1A",
+  suctionTempA: "Suction Temp OU 1A", liquidTempA: "Liquid Temp OU 1A",
+  superheatA: "Superheat OU 1A", subcoolingA: "Subcooling OU 1A",
+  suctionPressureB: "Suction OU 1B", dischargePressureB: "Discharge OU 1B",
+  suctionTempB: "Suction Temp OU 1B", liquidTempB: "Liquid Temp OU 1B",
+  superheatB: "Superheat OU 1B", subcoolingB: "Subcooling OU 1B",
+  voltOU1A_R: "Tegangan OU 1A-R", voltOU1A_S: "Tegangan OU 1A-S", voltOU1A_T: "Tegangan OU 1A-T",
+  voltOU1B_R: "Tegangan OU 1B-R", voltOU1B_S: "Tegangan OU 1B-S", voltOU1B_T: "Tegangan OU 1B-T",
+  voltIDU_R: "Tegangan Indoor-R", voltIDU_S: "Tegangan Indoor-S", voltIDU_T: "Tegangan Indoor-T",
+  ampOU1A_R: "Arus OU 1A-R", ampOU1A_S: "Arus OU 1A-S", ampOU1A_T: "Arus OU 1A-T",
+  ampOU1B_R: "Arus OU 1B-R", ampOU1B_S: "Arus OU 1B-S", ampOU1B_T: "Arus OU 1B-T",
+  ampIDU_R: "Arus Indoor-R", ampIDU_S: "Arus Indoor-S", ampIDU_T: "Arus Indoor-T",
+  powerOU1A: "Daya OU 1A", powerOU1B: "Daya OU 1B", powerIDU: "Daya Indoor",
+  powerTotal: "Daya Total OU1A+OU1B+Indoor",
 };
 const BIT_KEYS = ["suctionPressure", "dischargePressure", "voltageLL", "co2"];
 function alarmRows(data, badKeys, vals) {
@@ -840,7 +1025,7 @@ async function fetchData() {
       if (!hasRaw && !Number.isFinite(v)) { setNeutral(key); continue; }
       if (!setCard(key, v, classify(key, v, data, currentUnit))) bad.push(key);
     }
-    pushTrend(vals.suctionPressure, vals.dischargePressure, vals.supplyTemp, vals.returnTemp, vals.roomTemp, vals.outdoorTemp);
+    pushTrend(vals.suctionPressureA ?? vals.suctionPressure, vals.dischargePressureA ?? vals.dischargePressure, vals.supplyTemp, vals.returnTemp, vals.roomTemp, vals.outdoorTemp);
     $("lastUpdate").textContent = "Update: " + new Date().toLocaleTimeString("id-ID", { hour12: false });
     const comp = data.compStatus;
     setPill($("compPill"), comp === 1 ? "Kompresor ON" : comp === 0 ? "Kompresor OFF" : "Kompresor --", comp === 1 ? "is-ok" : "");
